@@ -18,7 +18,7 @@ import { GenerateMultipleQuestionsDto } from './dto/generate-multiple-questions.
 
 @Controller('questions')
 export class QuestionsController {
-  constructor(private readonly questionsService: QuestionsService) { }
+  constructor(private readonly questionsService: QuestionsService) {}
 
   @Post('generate')
   @UseInterceptors(FileInterceptor('file'))
@@ -46,7 +46,7 @@ export class QuestionsController {
     } catch (error) {
       console.error('Error generating questions:', error);
       throw new HttpException(
-        error.message || 'Failed to generate questions',
+        (error as Error).message || 'Failed to generate questions',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -78,7 +78,7 @@ export class QuestionsController {
     } catch (error) {
       console.error('Error generating multiple questions:', error);
       throw new HttpException(
-        error.message || 'Failed to generate questions',
+        (error as Error).message || 'Failed to generate questions',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

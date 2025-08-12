@@ -12,10 +12,12 @@ async function bootstrap() {
   });
 
   // Enable validation pipes
-  app.useGlobalPipes(new ValidationPipe({
-    transform: true,
-    whitelist: true,
-  }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+    }),
+  );
 
   // Set global prefix
   app.setGlobalPrefix('api');
@@ -25,4 +27,7 @@ async function bootstrap() {
 
   console.log(`🚀 Server running on http://localhost:${port}`);
 }
-bootstrap();
+bootstrap().catch((error) => {
+  console.error('Failed to start application:', error);
+  process.exit(1);
+});

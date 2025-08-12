@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { OpenAIService } from '../openai/openai.service';
+import { OpenAIService, GeneratedQuestion } from '../openai/openai.service';
 import { FileProcessingService } from '../file-processing/file-processing.service';
 import { GenerateQuestionsDto } from './dto/generate-questions.dto';
 import { GenerateMultipleQuestionsDto } from './dto/generate-multiple-questions.dto';
@@ -19,7 +19,7 @@ export class QuestionsService {
     private prisma: PrismaService,
     private openaiService: OpenAIService,
     private fileProcessingService: FileProcessingService,
-  ) { }
+  ) {}
 
   async generateQuestions(
     file: Express.Multer.File,
@@ -33,7 +33,9 @@ export class QuestionsService {
 
     // Log truncation warning if needed
     if (sanitizeResult.wasTruncated) {
-      console.warn(`Text was truncated from ${sanitizeResult.originalLength} to ${sanitizeResult.truncatedLength} characters`);
+      console.warn(
+        `Text was truncated from ${sanitizeResult.originalLength} to ${sanitizeResult.truncatedLength} characters`,
+      );
     }
 
     // Generate questions using OpenAI
@@ -61,8 +63,8 @@ export class QuestionsService {
       textProcessingInfo: {
         wasTruncated: sanitizeResult.wasTruncated,
         originalLength: sanitizeResult.originalLength,
-        truncatedLength: sanitizeResult.truncatedLength
-      }
+        truncatedLength: sanitizeResult.truncatedLength,
+      },
     };
 
     return result;
@@ -107,7 +109,8 @@ export class QuestionsService {
     generatedQuestions: any[],
     userId?: string,
   ): Promise<QuestionSetWithQuestions> {
-    const title = dto.title || `${dto.subject} - ${new Date().toLocaleDateString('vi-VN')}`;
+    const title =
+      dto.title || `${dto.subject} - ${new Date().toLocaleDateString('vi-VN')}`;
 
     return this.prisma.questionSet.create({
       data: {
@@ -120,17 +123,22 @@ export class QuestionsService {
         fileContent: content.substring(0, 5000), // Store first 5000 chars for reference
         userId,
         questions: {
-          create: generatedQuestions.map((q, index) => ({
+          create: generatedQuestions.map((q: GeneratedQuestion, index) => ({
             content: q.question,
             explanation: q.explanation,
             type: q.type || dto.questionType, // Use question's type if available, fallback to dto.questionType
             order: index + 1,
             choices: {
-              create: q.choices.map((choice: any, choiceIndex: number) => ({
-                label: choice.label,
-                content: choice.content,
-                order: choiceIndex + 1,
-              })),
+              create: q.choices.map(
+                (
+                  choice: { label: string; content: string },
+                  choiceIndex: number,
+                ) => ({
+                  label: choice.label,
+                  content: choice.content,
+                  order: choiceIndex + 1,
+                }),
+              ),
             },
             correctAnswers: {
               create: q.correctAnswers.map((answer: string) => ({
@@ -166,12 +174,15 @@ export class QuestionsService {
 
     // Log truncation warning if needed
     if (sanitizeResult.wasTruncated) {
-      console.warn(`Text was truncated from ${sanitizeResult.originalLength} to ${sanitizeResult.truncatedLength} characters`);
+      console.warn(
+        `Text was truncated from ${sanitizeResult.originalLength} to ${sanitizeResult.truncatedLength} characters`,
+      );
     }
 
     // Calculate questions per type
     const questionsPerType = Math.ceil(
-      generateMultipleQuestionsDto.questionCount / generateMultipleQuestionsDto.questionTypes.length
+      generateMultipleQuestionsDto.questionCount /
+        generateMultipleQuestionsDto.questionTypes.length,
     );
 
     // Generate questions for each type
@@ -189,48 +200,63 @@ export class QuestionsService {
     }
 
     // Validate and fix question types
-    const validatedQuestions = allGeneratedQuestions.map(q => {
-      // Fix MULTIPLE_RESPONSE questions
-      if (q.type === 'MULTIPLE_RESPONSE' && q.correctAnswers.length < 2) {
-        console.warn(`Fixing MULTIPLE_RESPONSE question with only ${q.correctAnswers.length} correct answer(s)`);
-        // Auto-fix by ensuring at least 2 correct answers
-        const availableLabels = ['A', 'B', 'C', 'D'].filter(label => !q.correctAnswers.includes(label));
-        while (q.correctAnswers.length < 2 && availableLabels.length > 0) {
-          q.correctAnswers.push(availableLabels.shift());
-        }
-        // Fallback if still not enough
-        if (q.correctAnswers.length < 2) {
-          q.correctAnswers = ['A', 'B'];
-        }
-      }
-
-      // Fix COMPLETION questions
-      if (q.type === 'COMPLETION' && !q.question.includes('_____')) {
-        console.warn(`Fixing COMPLETION question without blank marker`);
-        // Try to auto-fix by adding blank at appropriate place
-        let fixedQuestion = q.question;
-
-        // Pattern matching to insert blanks
-        fixedQuestion = fixedQuestion.replace(/là\s+([^\s,\.]+)/g, 'là _____');
-        fixedQuestion = fixedQuestion.replace(/bằng\s+([^\s,\.]+)/g, 'bằng _____');
-        fixedQuestion = fixedQuestion.replace(/có\s+([^\s,\.]+)/g, 'có _____');
-
-        // If no pattern matched, add blank at the end
-        if (!fixedQuestion.includes('_____')) {
-          fixedQuestion = fixedQuestion.replace(/\?$/, ' _____?');
-          if (!fixedQuestion.includes('_____')) {
-            fixedQuestion += ' _____';
+    const validatedQuestions = allGeneratedQuestions.map(
+      (q: GeneratedQuestion) => {
+        // Fix MULTIPLE_RESPONSE questions
+        if (q.type === 'MULTIPLE_RESPONSE' && q.correctAnswers.length < 2) {
+          console.warn(
+            `Fixing MULTIPLE_RESPONSE question with only ${q.correctAnswers.length} correct answer(s)`,
+          );
+          // Auto-fix by ensuring at least 2 correct answers
+          const availableLabels = ['A', 'B', 'C', 'D'].filter(
+            (label) => !q.correctAnswers.includes(label),
+          );
+          while (q.correctAnswers.length < 2 && availableLabels.length > 0) {
+            const nextLabel = availableLabels.shift();
+            if (nextLabel) {
+              q.correctAnswers.push(nextLabel);
+            }
+          }
+          // Fallback if still not enough
+          if (q.correctAnswers.length < 2) {
+            q.correctAnswers = ['A', 'B'];
           }
         }
 
-        q.question = fixedQuestion;
-      }
+        // Fix COMPLETION questions
+        if (q.type === 'COMPLETION' && !q.question.includes('_____')) {
+          console.warn(`Fixing COMPLETION question without blank marker`);
+          // Try to auto-fix by adding blank at appropriate place
+          let fixedQuestion = q.question;
 
-      return q;
-    });
+          // Pattern matching to insert blanks
+          fixedQuestion = fixedQuestion.replace(/là\s+([^\s,.]+)/g, 'là _____');
+          fixedQuestion = fixedQuestion.replace(
+            /bằng\s+([^\s,.]+)/g,
+            'bằng _____',
+          );
+          fixedQuestion = fixedQuestion.replace(/có\s+([^\s,.]+)/g, 'có _____');
+
+          // If no pattern matched, add blank at the end
+          if (!fixedQuestion.includes('_____')) {
+            fixedQuestion = fixedQuestion.replace(/\?$/, ' _____?');
+            if (!fixedQuestion.includes('_____')) {
+              fixedQuestion += ' _____';
+            }
+          }
+
+          q.question = fixedQuestion;
+        }
+
+        return q;
+      },
+    );
 
     // Limit to requested count
-    const finalQuestions = validatedQuestions.slice(0, generateMultipleQuestionsDto.questionCount);
+    const finalQuestions = validatedQuestions.slice(
+      0,
+      generateMultipleQuestionsDto.questionCount,
+    );
 
     // Save to database
     const questionSet = await this.saveQuestionSet(
@@ -250,8 +276,8 @@ export class QuestionsService {
       textProcessingInfo: {
         wasTruncated: sanitizeResult.wasTruncated,
         originalLength: sanitizeResult.originalLength,
-        truncatedLength: sanitizeResult.truncatedLength
-      }
+        truncatedLength: sanitizeResult.truncatedLength,
+      },
     };
 
     return result;

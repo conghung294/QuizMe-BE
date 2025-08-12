@@ -1,4 +1,13 @@
-import { IsString, IsNumber, IsEnum, IsOptional, Min, Max, IsArray, ArrayMinSize } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsEnum,
+  IsOptional,
+  Min,
+  Max,
+  IsArray,
+  ArrayMinSize,
+} from 'class-validator';
 import { QuestionType } from '@prisma/client';
 import { Transform } from 'class-transformer';
 
@@ -6,7 +15,7 @@ export class GenerateMultipleQuestionsDto {
   @IsString()
   subject: string;
 
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }) => parseInt(value as string))
   @IsNumber()
   @Min(1)
   @Max(50)
@@ -15,12 +24,12 @@ export class GenerateMultipleQuestionsDto {
   @Transform(({ value }) => {
     if (typeof value === 'string') {
       try {
-        return JSON.parse(value);
+        return JSON.parse(value) as QuestionType[];
       } catch {
-        return [value];
+        return [value as QuestionType];
       }
     }
-    return value;
+    return value as QuestionType[];
   })
   @IsArray()
   @ArrayMinSize(1)

@@ -1,4 +1,11 @@
-import { IsString, IsNumber, IsEnum, IsOptional, Min, Max } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsEnum,
+  IsOptional,
+  Min,
+  Max,
+} from 'class-validator';
 import { QuestionType } from '@prisma/client';
 import { Transform } from 'class-transformer';
 
@@ -6,7 +13,7 @@ export class GenerateQuestionsDto {
   @IsString()
   subject: string;
 
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }) => parseInt(value as string))
   @IsNumber()
   @Min(1)
   @Max(50)

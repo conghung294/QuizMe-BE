@@ -20,7 +20,8 @@ export class PracticeController {
   @Post('start')
   async startPractice(@Body() startPracticeDto: StartPracticeDto) {
     try {
-      const session = await this.practiceService.startPractice(startPracticeDto);
+      const session =
+        await this.practiceService.startPractice(startPracticeDto);
       return {
         success: true,
         data: session,
@@ -62,7 +63,8 @@ export class PracticeController {
   @Post('complete')
   async completePractice(@Body() completePracticeDto: CompletePracticeDto) {
     try {
-      const session = await this.practiceService.completePractice(completePracticeDto);
+      const session =
+        await this.practiceService.completePractice(completePracticeDto);
       return {
         success: true,
         data: session,
@@ -84,9 +86,12 @@ export class PracticeController {
   async getPracticeSession(@Param('id') id: string) {
     try {
       const session = await this.practiceService.getPracticeSession(id);
-      
+
       if (!session) {
-        throw new HttpException('Practice session not found', HttpStatus.NOT_FOUND);
+        throw new HttpException(
+          'Practice session not found',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       return {

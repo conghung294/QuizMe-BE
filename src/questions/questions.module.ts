@@ -10,4 +10,4 @@ import { FileProcessingModule } from '../file-processing/file-processing.module'
   providers: [QuestionsService],
   exports: [QuestionsService],
 })
-export class QuestionsModule { }
+export class QuestionsModule {}

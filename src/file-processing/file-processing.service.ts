@@ -12,7 +12,9 @@ export class FileProcessingService {
       } else if (mimetype === 'text/plain') {
         return buffer.toString('utf-8');
       } else {
-        throw new Error('Unsupported file type. Only PDF and TXT files are supported.');
+        throw new Error(
+          'Unsupported file type. Only PDF and TXT files are supported.',
+        );
       }
     } catch (error) {
       console.error('Error extracting text from file:', error);
@@ -22,7 +24,7 @@ export class FileProcessingService {
 
   private async extractTextFromPDF(buffer: Buffer): Promise<string> {
     try {
-      const data = await pdfParse(buffer);
+      const data = (await pdfParse(buffer)) as { text: string };
       return data.text;
     } catch (error) {
       console.error('Error parsing PDF:', error);
@@ -43,9 +45,14 @@ export class FileProcessingService {
     }
   }
 
-  sanitizeText(text: string): { text: string; wasTruncated: boolean; originalLength: number; truncatedLength: number } {
+  sanitizeText(text: string): {
+    text: string;
+    wasTruncated: boolean;
+    originalLength: number;
+    truncatedLength: number;
+  } {
     // Remove excessive whitespace and normalize
-    let sanitized = text
+    const sanitized = text
       .replace(/\s+/g, ' ')
       .replace(/\n\s*\n/g, '\n')
       .trim();
@@ -59,7 +66,7 @@ export class FileProcessingService {
       text: result.text,
       wasTruncated: result.wasTruncated,
       originalLength,
-      truncatedLength: result.text.length
+      truncatedLength: result.text.length,
     };
   }
 
@@ -70,7 +77,9 @@ export class FileProcessingService {
       return { text, wasTruncated: false };
     }
 
-    console.warn(`Text is too long (${text.length} chars). Truncating to ${MAX_CHARS} chars.`);
+    console.warn(
+      `Text is too long (${text.length} chars). Truncating to ${MAX_CHARS} chars.`,
+    );
 
     // Try to find a good breaking point (end of sentence or paragraph)
     let truncated = text.substring(0, MAX_CHARS);
@@ -112,7 +121,9 @@ export class FileProcessingService {
       }
     }
 
-    console.log(`Text truncated from ${text.length} to ${truncated.length} characters`);
+    console.log(
+      `Text truncated from ${text.length} to ${truncated.length} characters`,
+    );
     return { text: truncated.trim(), wasTruncated: true };
   }
 }

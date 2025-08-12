@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { QuestionType } from '@prisma/client';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { ParsedAIResponse } from '../types/ai-response.types';
 
 export interface GenerateQuestionsRequest {
   content: string;
@@ -26,12 +27,12 @@ export class OpenAIService {
 
   constructor(private configService: ConfigService) {
     this.genAI = new GoogleGenerativeAI(
-      this.configService.get<string>('GEMINI_API_KEY')
+      this.configService.get<string>('GEMINI_API_KEY'),
     );
   }
 
   async generateQuestions(
-    request: GenerateQuestionsRequest
+    request: GenerateQuestionsRequest,
   ): Promise<GeneratedQuestion[]> {
     const prompt = this.buildPrompt(request);
 
@@ -49,11 +50,11 @@ export class OpenAIService {
         throw new Error('Không tìm thấy JSON hợp lệ trong phản hồi AI');
       }
 
-      const parsedResponse = JSON.parse(cleanJson);
+      const parsedResponse = JSON.parse(cleanJson) as ParsedAIResponse;
 
       return this.validateAndFormatQuestions(
         parsedResponse.questions,
-        request.questionType
+        request.questionType,
       );
     } catch (error) {
       console.error('Error generating questions:', error);
@@ -65,7 +66,10 @@ export class OpenAIService {
   private extractJson(text: string): string | null {
     try {
       // Loại bỏ markdown code fences
-      let cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+      const cleaned = text
+        .replace(/```json/gi, '')
+        .replace(/```/g, '')
+        .trim();
 
       // Nếu parse được ngay thì trả luôn
       JSON.parse(cleaned);
@@ -94,7 +98,8 @@ export class OpenAIService {
 
     switch (questionType) {
       case QuestionType.MULTIPLE_CHOICE:
-        typeInstruction = 'Tạo câu hỏi trắc nghiệm với 4 lựa chọn (A, B, C, D), chỉ có 1 đáp án đúng.';
+        typeInstruction =
+          'Tạo câu hỏi trắc nghiệm với 4 lựa chọn (A, B, C, D), chỉ có 1 đáp án đúng.';
         formatExample = `
         "choices": [
           {"label": "A", "content": "Nội dung đáp án A"},
@@ -116,7 +121,8 @@ export class OpenAIService {
         break;
 
       case QuestionType.MULTIPLE_RESPONSE:
-        typeInstruction = 'Tạo câu hỏi với 4 lựa chọn (A, B, C, D), BẮT BUỘC phải có ít nhất 2 đáp án đúng (2-3 đáp án). Đây là loại câu hỏi nhiều lựa chọn đúng.';
+        typeInstruction =
+          'Tạo câu hỏi với 4 lựa chọn (A, B, C, D), BẮT BUỘC phải có ít nhất 2 đáp án đúng (2-3 đáp án). Đây là loại câu hỏi nhiều lựa chọn đúng.';
         formatExample = `
         "choices": [
           {"label": "A", "content": "Nội dung đáp án A"},
@@ -128,7 +134,8 @@ export class OpenAIService {
         break;
 
       case QuestionType.MATCHING:
-        typeInstruction = 'Tạo câu hỏi ghép đôi với 4 cặp thuật ngữ-định nghĩa hoặc nguyên nhân-kết quả. Mỗi lựa chọn là một cặp ghép.';
+        typeInstruction =
+          'Tạo câu hỏi ghép đôi với 4 cặp thuật ngữ-định nghĩa hoặc nguyên nhân-kết quả. Mỗi lựa chọn là một cặp ghép.';
         formatExample = `
         "choices": [
           {"label": "A", "content": "Thuật ngữ 1 - Định nghĩa 1"},
@@ -140,7 +147,8 @@ export class OpenAIService {
         break;
 
       case QuestionType.COMPLETION:
-        typeInstruction = 'Tạo câu hỏi điền khuyết với một câu/đoạn văn có chỗ trống được đánh dấu bằng _____ (5 dấu gạch dưới), 4 lựa chọn từ/cụm từ để điền vào chỗ trống đó.';
+        typeInstruction =
+          'Tạo câu hỏi điền khuyết với một câu/đoạn văn có chỗ trống được đánh dấu bằng _____ (5 dấu gạch dưới), 4 lựa chọn từ/cụm từ để điền vào chỗ trống đó.';
         formatExample = `
         "question": "Công thức tính diện tích hình tròn là S = π × _____",
         "choices": [
@@ -153,7 +161,8 @@ export class OpenAIService {
         break;
 
       default:
-        typeInstruction = 'Tạo câu hỏi trắc nghiệm với 4 lựa chọn (A, B, C, D), chỉ có 1 đáp án đúng.';
+        typeInstruction =
+          'Tạo câu hỏi trắc nghiệm với 4 lựa chọn (A, B, C, D), chỉ có 1 đáp án đúng.';
         formatExample = `
         "choices": [
           {"label": "A", "content": "Nội dung đáp án A"},
@@ -178,10 +187,16 @@ YÊU CẦU:
 - Câu hỏi phải chính xác, rõ ràng và dựa trên nội dung đã cho
 - Mỗi câu hỏi phải có giải thích ngắn gọn cho đáp án đúng (KHÔNG đề cập số trang, slide hay tài liệu cụ thể)
 - Các lựa chọn sai phải hợp lý và không quá dễ loại trừ
-${questionType === QuestionType.MULTIPLE_RESPONSE ?
-        `- ĐẶC BIỆT: Với loại MULTIPLE_RESPONSE, hãy tạo câu hỏi mà có thể có nhiều đáp án đúng cùng lúc. Ví dụ: "Những đặc điểm nào sau đây là đúng về X?", "Các yếu tố nào ảnh hưởng đến Y?", "Phương pháp nào có thể được sử dụng để Z?"` : ''}
-${questionType === QuestionType.COMPLETION ?
-        `- ĐẶC BIỆT: Với loại COMPLETION, câu hỏi PHẢI có chỗ trống được đánh dấu bằng _____ (5 dấu gạch dưới). Ví dụ: "Công thức tính _____ của hình tròn là S = πr²", "Phương pháp _____ được sử dụng để giải quyết vấn đề này"` : ''}
+${
+  questionType === QuestionType.MULTIPLE_RESPONSE
+    ? `- ĐẶC BIỆT: Với loại MULTIPLE_RESPONSE, hãy tạo câu hỏi mà có thể có nhiều đáp án đúng cùng lúc. Ví dụ: "Những đặc điểm nào sau đây là đúng về X?", "Các yếu tố nào ảnh hưởng đến Y?", "Phương pháp nào có thể được sử dụng để Z?"`
+    : ''
+}
+${
+  questionType === QuestionType.COMPLETION
+    ? `- ĐẶC BIỆT: Với loại COMPLETION, câu hỏi PHẢI có chỗ trống được đánh dấu bằng _____ (5 dấu gạch dưới). Ví dụ: "Công thức tính _____ của hình tròn là S = πr²", "Phương pháp _____ được sử dụng để giải quyết vấn đề này"`
+    : ''
+}
 
 ⚠️ Chỉ trả về JSON hợp lệ, KHÔNG giải thích, KHÔNG thêm văn bản thừa.
 
@@ -215,18 +230,19 @@ VÍ DỤ EXPLANATION:
   }
 
   private validateAndFormatQuestions(
-    questions: any[],
-    questionType: QuestionType
+    questions: unknown[],
+    questionType: QuestionType,
   ): GeneratedQuestion[] {
     return questions.map((q, index) => {
-      if (!q.question || !q.choices || !q.correctAnswers) {
+      // Type guard for question structure
+      if (!this.isValidQuestionStructure(q)) {
         throw new Error(`Invalid question structure at index ${index}`);
       }
 
-      let formattedChoices = q.choices;
+      let formattedChoices = this.validateChoices(q.choices);
       let formattedCorrectAnswers = Array.isArray(q.correctAnswers)
-        ? q.correctAnswers
-        : [q.correctAnswers];
+        ? (q.correctAnswers as string[])
+        : [q.correctAnswers as string];
 
       // Validate and format based on question type
       switch (questionType) {
@@ -236,24 +252,28 @@ VÍ DỤ EXPLANATION:
             { label: 'False', content: 'Sai' },
           ];
           // Ensure correct answer is either True or False
-          if (!['True', 'False'].includes(formattedCorrectAnswers[0])) {
+          if (!['True', 'False'].includes(formattedCorrectAnswers[0] ?? '')) {
             formattedCorrectAnswers = ['True']; // Default fallback
           }
           break;
 
         case QuestionType.MULTIPLE_CHOICE:
           // Ensure only one correct answer
-          formattedCorrectAnswers = [formattedCorrectAnswers[0]];
+          formattedCorrectAnswers = [formattedCorrectAnswers[0] ?? 'A'];
           break;
 
         case QuestionType.MULTIPLE_RESPONSE:
           // Ensure multiple correct answers (2-3)
           if (formattedCorrectAnswers.length < 2) {
-            console.warn(`MULTIPLE_RESPONSE question at index ${index} has only ${formattedCorrectAnswers.length} correct answer(s). Auto-fixing by adding more correct answers.`);
+            console.warn(
+              `MULTIPLE_RESPONSE question at index ${index} has only ${formattedCorrectAnswers.length} correct answer(s). Auto-fixing by adding more correct answers.`,
+            );
 
             // Auto-fix: If only 1 correct answer, add another one
             if (formattedCorrectAnswers.length === 1) {
-              const availableLabels = ['A', 'B', 'C', 'D'].filter(label => !formattedCorrectAnswers.includes(label));
+              const availableLabels = ['A', 'B', 'C', 'D'].filter(
+                (label) => !formattedCorrectAnswers.includes(label),
+              );
               if (availableLabels.length > 0) {
                 formattedCorrectAnswers.push(availableLabels[0]);
               }
@@ -273,32 +293,48 @@ VÍ DỤ EXPLANATION:
 
         case QuestionType.MATCHING:
           // For matching, all choices should be correct (perfect pairing)
-          formattedCorrectAnswers = formattedChoices.map((choice: any) => choice.label);
+          formattedCorrectAnswers = formattedChoices.map(
+            (choice) => choice.label,
+          );
           break;
 
         case QuestionType.COMPLETION:
           // Ensure only one correct answer for completion
-          formattedCorrectAnswers = [formattedCorrectAnswers[0]];
+          formattedCorrectAnswers = [formattedCorrectAnswers[0] ?? 'A'];
 
           // Validate that question contains blank marker and auto-fix if needed
           if (!q.question.includes('_____')) {
-            console.warn(`COMPLETION question at index ${index} doesn't contain blank marker (_____). Auto-fixing...`);
+            console.warn(
+              `COMPLETION question at index ${index} doesn't contain blank marker (_____). Auto-fixing...`,
+            );
 
             // Try to auto-fix by finding a suitable place to insert blank
             // Look for common patterns where we can insert a blank
             let fixedQuestion = q.question;
 
             // Pattern 1: "là X" -> "là _____"
-            fixedQuestion = fixedQuestion.replace(/là\s+([^\s,\.]+)/g, 'là _____');
+            fixedQuestion = fixedQuestion.replace(
+              /là\s+([^\s,.]+)/g,
+              'là _____',
+            );
 
             // Pattern 2: "bằng X" -> "bằng _____"
-            fixedQuestion = fixedQuestion.replace(/bằng\s+([^\s,\.]+)/g, 'bằng _____');
+            fixedQuestion = fixedQuestion.replace(
+              /bằng\s+([^\s,.]+)/g,
+              'bằng _____',
+            );
 
             // Pattern 3: "có X" -> "có _____"
-            fixedQuestion = fixedQuestion.replace(/có\s+([^\s,\.]+)/g, 'có _____');
+            fixedQuestion = fixedQuestion.replace(
+              /có\s+([^\s,.]+)/g,
+              'có _____',
+            );
 
             // Pattern 4: "được gọi là X" -> "được gọi là _____"
-            fixedQuestion = fixedQuestion.replace(/được\s+gọi\s+là\s+([^\s,\.]+)/g, 'được gọi là _____');
+            fixedQuestion = fixedQuestion.replace(
+              /được\s+gọi\s+là\s+([^\s,.]+)/g,
+              'được gọi là _____',
+            );
 
             // If no pattern matched, add blank at the end
             if (!fixedQuestion.includes('_____')) {
@@ -308,7 +344,8 @@ VÍ DỤ EXPLANATION:
               }
             }
 
-            q.question = fixedQuestion;
+            // Update the question in the validated object
+            (q as { question: string }).question = fixedQuestion;
           }
           break;
       }
@@ -317,9 +354,58 @@ VÍ DỤ EXPLANATION:
         question: q.question,
         choices: formattedChoices,
         correctAnswers: formattedCorrectAnswers,
-        explanation: q.explanation,
+        explanation: q.explanation ?? '',
         type: questionType,
       };
+    });
+  }
+
+  private isValidQuestionStructure(q: unknown): q is {
+    question: string;
+    choices: unknown[];
+    correctAnswers: unknown;
+    explanation?: string;
+  } {
+    if (typeof q !== 'object' || q === null) return false;
+
+    const obj = q as Record<string, unknown>;
+    return (
+      'question' in obj &&
+      'choices' in obj &&
+      'correctAnswers' in obj &&
+      typeof obj.question === 'string' &&
+      Array.isArray(obj.choices) &&
+      obj.correctAnswers !== undefined
+    );
+  }
+
+  private validateChoices(
+    choices: unknown[],
+  ): { label: string; content: string }[] {
+    return choices.map((choice, index) => {
+      if (
+        typeof choice === 'object' &&
+        choice !== null &&
+        'label' in choice &&
+        'content' in choice
+      ) {
+        const choiceObj = choice as Record<string, unknown>;
+        return {
+          label:
+            typeof choiceObj.label === 'string'
+              ? choiceObj.label
+              : typeof choiceObj.label === 'number'
+                ? choiceObj.label.toString()
+                : '',
+          content:
+            typeof choiceObj.content === 'string'
+              ? choiceObj.content
+              : typeof choiceObj.content === 'number'
+                ? choiceObj.content.toString()
+                : '',
+        };
+      }
+      throw new Error(`Invalid choice structure at index ${index}`);
     });
   }
 }

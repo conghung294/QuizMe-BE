@@ -1,9 +1,19 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StartPracticeDto } from './dto/start-practice.dto';
 import { SubmitAnswerDto } from './dto/submit-answer.dto';
 import { CompletePracticeDto } from './dto/complete-practice.dto';
-import { PracticeSession, PracticeAnswer, Question, Choice, CorrectAnswer } from '@prisma/client';
+import {
+  PracticeSession,
+  PracticeAnswer,
+  Question,
+  Choice,
+  CorrectAnswer,
+} from '@prisma/client';
 
 export interface PracticeSessionWithDetails extends PracticeSession {
   questionSet: {
@@ -30,7 +40,9 @@ export interface AnswerResult {
 export class PracticeService {
   constructor(private prisma: PrismaService) {}
 
-  async startPractice(startPracticeDto: StartPracticeDto): Promise<PracticeSessionWithDetails> {
+  async startPractice(
+    startPracticeDto: StartPracticeDto,
+  ): Promise<PracticeSessionWithDetails> {
     // Verify question set exists
     const questionSet = await this.prisma.questionSet.findUnique({
       where: { id: startPracticeDto.questionSetId },
@@ -113,13 +125,18 @@ export class PracticeService {
     });
 
     if (existingAnswer) {
-      throw new BadRequestException('Answer already submitted for this question');
+      throw new BadRequestException(
+        'Answer already submitted for this question',
+      );
     }
 
     // Check if answer is correct
-    const correctAnswerLabels = question.correctAnswers.map(ca => ca.choiceLabel).sort();
+    const correctAnswerLabels = question.correctAnswers
+      .map((ca) => ca.choiceLabel)
+      .sort();
     const selectedLabels = submitAnswerDto.selectedChoices.sort();
-    const isCorrect = JSON.stringify(correctAnswerLabels) === JSON.stringify(selectedLabels);
+    const isCorrect =
+      JSON.stringify(correctAnswerLabels) === JSON.stringify(selectedLabels);
 
     // Save answer
     await this.prisma.practiceAnswer.create({
@@ -147,7 +164,9 @@ export class PracticeService {
     };
   }
 
-  async completePractice(completePracticeDto: CompletePracticeDto): Promise<PracticeSessionWithDetails> {
+  async completePractice(
+    completePracticeDto: CompletePracticeDto,
+  ): Promise<PracticeSessionWithDetails> {
     const session = await this.prisma.practiceSession.findUnique({
       where: { id: completePracticeDto.sessionId },
     });
@@ -186,7 +205,9 @@ export class PracticeService {
     return completedSession;
   }
 
-  async getPracticeSession(sessionId: string): Promise<PracticeSessionWithDetails | null> {
+  async getPracticeSession(
+    sessionId: string,
+  ): Promise<PracticeSessionWithDetails | null> {
     return this.prisma.practiceSession.findUnique({
       where: { id: sessionId },
       include: {
